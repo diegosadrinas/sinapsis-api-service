@@ -1,31 +1,106 @@
-service: aws-nodejs-typescript
+service: thumbnail-api
 frameworkVersion: '3'
 plugins:
   - serverless-esbuild
   - serverless-offline
+  - serverless-iam-roles-per-function
 provider:
   name: aws
   runtime: nodejs14.x
+  region: us-east-1
   apiGateway:
-    minimumCompressionSize: 1024
+    # minimumCompressionSize: 0
     shouldStartNameWithService: true
+    binaryMediaTypes:
+      - 'multipart/form-data'
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
     NODE_OPTIONS: '--enable-source-maps --stack-trace-limit=1000'
+    BUCKET_NAME: thumbnail-api-bucket
+    TABLE_NAME: thumbnailTable
+    REGION: '${self:provider.region}'
+
+# -----------------------------------------------FUNCTIONS---------------------------------------------------
 functions:
   hello:
-    handler: src/functions/hello.handler
+    handler: src/handlers/hello/handler.main
     events:
       - http:
-          method: get
+          method: post
           path: hello
-  # more functions can be added here
+ 
+  lambda-test:
+    handler: src/handlers/lambda-test/handler.main
+    events:
+      - http:
+          method: post
+          path: lambda-test
+  resizer:
+    handler: src/handlers/resizer/handler.main
+    memorySize: 256
+    timeout: 60
+    events:
+      - http:
+          method: post
+          path: resizer
+          request:
+            parameters:
+              headers:
+                Accept: true
+                Content-Type: true
+    environment:
+      MAX_FILE_SIZE: 11000000
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:PutObject
+        Resource: 
+          - "arn:aws:s3:::self:provider.environment.BUCKET_NAME/*"
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:PutItem
+        Resource: 
+          - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TABLE_NAME}"
+
+
+  
+
+# ---------------------------------------------------------------------------------------------------------
+
+# --------------------------------------------RESOURCES-----------------------------------------------------
+resources:
+  Resources:
+    thumbnailTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: "${self:provider.environment.TABLE_NAME}"
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+# ---------------------------------------------------------------------------------------------------------
 package:
   individually: true
+  include: 
+    - src/**
+    - .env
   exclude:
     - node_modules/**
 custom:
   esbuild:
+    external:
+      - sharp
+    packagerOptions:
+      scripts:
+        - "npm install --arch=x64 --platform=linux sharp"
     bundle: true
     minify: false
     sourcemap: true

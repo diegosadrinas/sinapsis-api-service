@@ -8,9 +8,11 @@
     "removeComments": true,
     "sourceMap": true,
     "target": "ES2020",
-    "outDir": "lib"
+    "outDir": "lib",
+    "esModuleInterop": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "serverless.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules/**/*",
     ".serverless/**/*",
