@@ -67,7 +67,19 @@ functions:
 
   
 
-# ---------------------------------------------------------------------------------------------------------
+# ---------------------------------CUSTOM------------------------------------------------------------------
+
+custom:
+  bundle:
+    packagerOptions:
+      scripts:
+        - rm -rf node_modules/sharp
+        - npm install --arch=x64 --platform=linux sharp
+    functions:
+      resizer:
+        bundle: true
+    service:
+      bundle: true
 
 # --------------------------------------------RESOURCES-----------------------------------------------------
 resources:
@@ -94,19 +106,19 @@ package:
     - .env
   exclude:
     - node_modules/**
-custom:
-  esbuild:
-    external:
-      - sharp
-    packagerOptions:
-      scripts:
-        - "npm install --arch=x64 --platform=linux sharp"
-    bundle: true
-    minify: false
-    sourcemap: true
-    exclude: [aws-sdk]
-    target: node14
-    define:
-      'require.resolve': undefined
-    platform: node
-    concurrency: 10
+# custom:
+#   esbuild:
+#     external:
+#       - sharp
+#     packagerOptions:
+#       scripts:
+#         - "npm install --arch=x64 --platform=linux sharp"
+#     bundle: true
+#     minify: false
+#     sourcemap: true
+#     exclude: [aws-sdk]
+#     target: node14
+#     define:
+#       'require.resolve': undefined
+#     platform: node
+#     concurrency: 10
