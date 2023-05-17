@@ -1,210 +1,170 @@
-import { APIGatewayEvent, APIGatewayProxyHandler } from 'aws-lambda';
+import Jimp from 'jimp'
+import * as fileType from 'file-type';
+import { S3Event, S3Handler } from 'aws-lambda';
 import { middyfy } from '@libs/lambda';
 import { Buffer } from 'buffer';
-import { GetObjectCommand, PutObjectCommand, S3 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuid } from 'uuid';
-import * as lambdaMultipartParser from 'aws-lambda-multipart-parser';
-import Jimp from 'jimp'
-import axios from 'axios'
-import 'source-map-support/register'; //chequear esto
+import { HeadBucketCommand, HeadObjectCommand, S3 } from "@aws-sdk/client-s3";
+import { 
+    createPresignedUrlForGetRequest, 
+    uploadPresignedObject,
+    getObject,
+    responses 
+} from '../../helpers'
 
-
-// Create S3 client
-const region = process.env.region
-const s3 = new S3({region: region});
 
 // Define the S3 bucket and folder names
-const bucket = process.env.BUCKET_NAME;
-const originalFolder = 'original';
-const resizedFolder = 'resized';
+const region: string = process.env.region
+const bucket: string = process.env.BUCKET_NAME;
+const originalFolder: string = 'original';
+const resizedFolder: string = 'resized';
+const s3 = new S3({region: region});
+
 
 // Define the image variables
-const sizes = [
-  { width: 400, height: 300 },
-  { width: 160, height: 120 },
-  { width: 120, height: 120 },
-];
-const maxFileSize = process.env.MAX_FILE_SIZE
-const validFormats = ['jpg', 'jpeg', 'png'];
+const maxFileSize: number = parseInt(process.env.MAX_FILE_SIZE)
+const validFormats: string[] = ['jpg', 'jpeg', 'png'];
+const sizes: object[] = [
+    { width: 400, height: 300 },
+    { width: 160, height: 120 },
+    { width: 120, height: 120 },
+  ];
 
-// Resizer main logic:
-const resizer: APIGatewayProxyHandler = async (event: APIGatewayEvent) => {
+
+const resizer: S3Handler = async (event: S3Event) => {
     try {
-    // Get the image file from the parsed data
-        const parsedData = lambdaMultipartParser.parse(event);
-        const file = parsedData.image;
+        // --------------------------------------------------------------------------------------
+        // Comentarios de Diego:  
+        //  1. Por que no poner el mime directamente como content type. 
+        //  2. Sacar el one liner y que el mime type sea ese salvo que esté la E. 
+        //  3. Hacer un try/catch por cada acción importante, como upload.
 
-    // Get the file properties and buffer
-        const { type, filename, contentType, content } = file;
-        const fileExt = filename.split('.').pop();
-        const buffer = Buffer.from(content, 'binary')
+        console.log(`Entered in Resize Handler...`)
 
-        console.log(`Name: ${filename}, \nType: ${type}, \ncontent Type: ${file.contentType}, \nExtension: ${fileExt}`);
+        // Get the uploaded object:
+        try {
+            const key = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, ' '));;
+            const bucket = event.Records[0].s3.bucket.name;
+            const params = await s3.send(new HeadObjectCommand({ Bucket:bucket, Key:key }))
+            console.log(`Params: ${params}`)
+            const image = getObject({key, bucket})
+            console.log(`Body keys: ${Object.keys(image)}`)
+            return responses._200({message: 'Image resized and uploaded successfully', data: `Body keys: ${Object.keys(image)}`  });    
 
-    // Check if file is of type image
-        if (!contentType.includes('image')) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({
-                    message: 'Invalid content type. Expected an image.'
-                })
-            };
-        } 
-    // Check if the image is in a valid format
-        if (!validFormats.includes(fileExt)) {
-            return {
-            statusCode: 400,
-            body: JSON.stringify({ message: 'Invalid image type. Only JPEG and PNG files are allowed' }),
-            };
+
+        } catch (error) {
+            return responses._500({
+                message: `Error getting S3 Object. Operation failed.`,
+                error: error.message,
+            });
         }
-    // Check if the image file size is valid
-        if (buffer.length > parseInt(maxFileSize)) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({
-                    message: 'File size too large. Max file size allowed is 11mb.'
-                })
-            };
-        };
 
-    // -------------------------------------------------------------------------------------------------------------
-    // TODO: Refactor this into one single function imported from Utils:
-        const createPresignedUrlForPutRequest = ({ region, bucket, contentType, key }) => {
-            const command = new PutObjectCommand({ Bucket: bucket, Key: key });
-            return getSignedUrl(s3, command, { expiresIn: 3600 });
-        };
 
-        const createPresignedUrlForGetRequest = ({ region, bucket, contentType, key }) => {
-            const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-            return getSignedUrl(s3, command, { expiresIn: 3600 });
-          };
+
+
+
+    //     if (!event.body) {
+    //         return responses._400({ message: 'Incorrect body on request' })
+    //     }
         
-        const originalPresignedUrl = await createPresignedUrlForPutRequest({
-            region: region,
-            bucket: bucket,
-            contentType: contentType,
-            key: `${originalFolder}/${uuid()}.${fileExt}`,
-        });
-
-
-    // Upload the file to S3 using the presigned URL
-        await axios.put(originalPresignedUrl, buffer, {
-            headers: {
-                'Content-Type': contentType,
-            },
-            });
-
-    // -------------------------------------------------------------------------------------------------------------
-
-        const jimpImage = await Jimp.read(buffer)
-
-        // Use the map method to create an array of buffers for each size
-        const urlsForDownload: string[] = []
-        const resizeImages = await Promise.all(sizes.map(async size => {
-        // Create a clone of the original image
-            let resizedImage = jimpImage.clone();
-            // Resize the image using the width and height from the size object
-            resizedImage.resize(size.width, size.height);
-            // Write the resized image to a buffer and return it
-            let resizedBuffer = await resizedImage.getBufferAsync(contentType);
-
-            const resizedPresignedUrl = await createPresignedUrlForPutRequest({
-                region: region,
-                bucket: bucket,
-                contentType: contentType,
-                key: `${resizedFolder}/${uuid()}.${fileExt}`,
-            });
-
-            const presignedUrlForDownload = await createPresignedUrlForGetRequest({
-                region: region,
-                bucket: bucket,
-                contentType: contentType,
-                key: `${resizedFolder}/${uuid()}.${fileExt}`,
-            });
-
-            // Append presigned urls for final response
-            urlsForDownload.push(presignedUrlForDownload)
-
-
-            return axios.put(resizedPresignedUrl, resizedBuffer, {
-                headers: {
-                    'Content-Type': contentType,
-                },
-                });    
-        }));
-
-        await Promise.all(resizeImages);
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
-            message: `Image resized and uploaded successfully`,
-            data: urlsForDownload
-            }),
-        };
-    
-    //--------------------------------------------------------------------------------------------------------------
-
-    // // Loop through the sizes and resize the image
-    // for (const size of sizes) {
-    //   // Resize the image using sharp
-    //   const resizedImage = await sharp(image)
-    //     .resize(size.width, size.height)
-    //     .toBuffer();
-
-    //   // Upload the resized image to S3
-    //   await s3
-    //     .putObject({
-    //       Bucket: bucket,
-    //       Key: `${resizedFolder}/${size.width}x${size.height}/${fileName}`,
-    //       Body: resizedImage,
-    //       ContentType: 'image/jpeg',
-    //     })
-    //     .promise();
-    // };
-
-    // // Generate an array of resized images with their presigned URLs
-    // const resizedImages = sizes.map((size) => {
-    //     const key = `${resizedFolder}/${size.width}x${size.height}/${fileName}`;
-    //     const url = s3.getSignedUrl('getObject', { Bucket: bucket, Key: key, Expires: 60 * 60 });
-    //     return { size: `${size.width}x${size.height}`, url };
-    // });
-
-    // TODO: Insert object into DB
-        // Generate the pre-signed URL for the original image
-    // const generatePresignedUrl = s3.getSignedUrl('getObject', {
-    //     Bucket: bucket,
-    //     Key: `${originalFolder}/${fileName}`,
-    //     Expires: 60 * 60, // the URL will be valid for 1 hour
-    //   });
-
-    // Create an object with the original image data
-    // const originalImageData = {
-    //     bucketName: bucket,
-    //     objectKey: uploadOriginal.Key,
-    //     generatePresignedUrl,
+    //     const buffer = Buffer.from(event.body, 'base64');
+    //     const contentType = event.headers['Content-Type'];
+    //     const fileExt = contentType.split('/').pop();
+    //     const bucketParams = {
+    //         region: region,
+    //         bucket: bucket,
+    //         contentType: event.headers['Content-Type'],
+    //         key: `${originalFolder}/${uuid()}`  
     //     };
 
-    // const objectData = {
-    //     fileName: fileName,
-    //     original: `${originalFolder}/${fileName}`,
-    //     resized: sizes.map((size) => ({
-    //       url: `${resizedFolder}/${size.width}x${size.height}/${fileName}`,
-    //       width: size.width,
-    //       height: size.height,
-    //     })),
-    //   };
+    //     // Check if the image is in a valid format
+    //     if (!validFormats.includes(fileExt)) {
+    //         return responses._400({ message: 'Invalid image type. Only JPEG and PNG files are allowed' })
+    //     }
+    // // Check if the image file size is valid
+    //     if (buffer.length > maxFileSize) { 
+    //         return responses._400({ message: 'File size too large. Max file size allowed is 11mb.' })
+    //     };
+    
+    //     await uploadPresignedObject(bucketParams, buffer)
+    //     console.log("Image as binary uploaded")
 
+// -----------------------------------------------------------------------------------------------------------------
+
+        // const rawBuffer2 = Buffer.from(event.body, 'base64')
+        // const rawBucketParams2 = {
+        //     region: region,
+        //     bucket: bucket,
+        //     contentType: 'image/jpeg',
+        //     key: `${originalFolder}/${uuid()}`  
+        // };
+        // await uploadPresignedObject(rawBucketParams2, rawBuffer2)
+        // console.log("Image as base64 uploaded")
+
+        // const parsedData = lambdaMultipartParser.parse(event);
+        // console.log(`Parsed event Keys: ${Object.keys(event)}\n 
+        // Parsed File Keys: ${Object.keys(parsedData.file)}\n
+        // `)
+
+        // Check if body is empty or missing file
+        // if (!event.body) {
+        //     return responses._400({ message: 'Incorrect body on request' })
+        // }
+
+    // Get the file properties and buffer
+        // const { type, contentType, filename, content } = parsedData.file;
+        // const fileExt: string = filename.split('.').pop();
+        // const fileKey: string = `${uuid()}.${fileExt}`
+        // const buffer = Buffer.from(content, 'binary')
+        // const bucketParams = {
+        //     region: region,
+        //     bucket: bucket,
+        //     contentType: contentType,
+        //     key: `${originalFolder}/${fileKey}`  
+        // };
+        // console.log(`Name: ${filename}, \nType: ${type}, \ncontent Type: ${contentType}, \nExtension: ${fileExt}`);
+
+    // // Check if the image is in a valid format
+    //     if (!validFormats.includes(fileExt)) {
+    //         return responses._400({ message: 'Invalid image type. Only JPEG and PNG files are allowed' })
+    //     }
+    // // Check if the image file size is valid
+    //     if (buffer.length > maxFileSize) {
+    //         return responses._400({ message: 'File size too large. Max file size allowed is 11mb.' })
+    //     };
+
+
+    //     await uploadPresignedObject(bucketParams, buffer)
+// -----------------------------------------------------------------------------------------------------------------
+
+        // Resize main logic
+        // const mimeType = fileExt === 'jpg' || fileExt === 'jpeg' ? 'image/jpeg' : 'image/png'
+        // const urlsForDownload: string[] = []
+        // const jimpImage = await Jimp.read(buffer)
+        
+        // await Promise.all(sizes.map(async ({ width, height }) => {
+        //     const fileKey: string = `${uuid()}.${fileExt}`
+        //     const resizedImage = jimpImage.clone();
+        //     resizedImage.resize(width, height);
+        //     const resizedBuffer = await resizedImage.getBufferAsync(mimeType);
+        //     const resizedBucketParams = {
+        //         ...bucketParams,
+        //         key: `${resizedFolder}/${fileKey}`  
+        //     };
+        
+        //     const presignedUrlForDownload = await createPresignedUrlForGetRequest(resizedBucketParams);
+        //     urlsForDownload.push(presignedUrlForDownload)
+
+        //     await uploadPresignedObject(resizedBucketParams, resizedBuffer)    
+        // }));
+
+        // return responses._200({message: `Image resized and uploaded successfully`, data: urlsForDownload });    
     } catch (error) {
-        return {
-        statusCode: 500,
-        body: JSON.stringify({
+        return responses._500({
             message: `Image resizing and uploading failed`,
             error: error.message,
-        }),
-        };
-    }
+        });
+    };
 };
 
-export const main = middyfy(resizer)
+export const main = middyfy(resizer);

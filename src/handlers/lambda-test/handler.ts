@@ -7,8 +7,7 @@ import schema from './schema';
 
 const test: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
   return formatJSONResponse({
-    message: `Hello, ${event.body.name} welcome to the exciting Serverless world!. 
-    This is the bucket name: ${process.env.BUCKET_NAME}`,
+    message: `Hello, ${event.body.name}. This is an image resize service.`, 
     event,
   });
 };
