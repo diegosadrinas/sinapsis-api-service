@@ -1,4 +1,4 @@
-service: thumbnail-api
+service: thumbnail-api-service
 frameworkVersion: '3'
 plugins:
   - serverless-esbuild
@@ -10,96 +10,101 @@ provider:
   runtime: nodejs14.x
   region: us-east-1
   apiGateway:
-    # minimumCompressionSize: 0
     shouldStartNameWithService: true
     binaryMediaTypes:
-      - 'multipart/form-data'
+      - '*/*'
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
     NODE_OPTIONS: '--enable-source-maps --stack-trace-limit=1000'
-    BUCKET_NAME: thumbnail-api-bucket
-    TABLE_NAME: thumbnailTable
-    REGION: '${self:provider.region}'
+    BUCKET_NAME: thumbnail-api-service-bucket
+    REGION: !Ref AWS::Region
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:PutBucketPolicy
+        - s3:GetBucketPolicy
+      Resource: !Ref S3Bucket
 
 # -----------------------------------------------FUNCTIONS---------------------------------------------------
 functions:
-  hello:
-    handler: src/handlers/hello/handler.main
-    events:
-      - http:
-          method: post
-          path: hello
- 
   lambda-test:
     handler: src/handlers/lambda-test/handler.main
     events:
       - http:
           method: post
           path: lambda-test
-  resizer:
-    handler: src/handlers/resizer/handler.main
-    memorySize: 256
-    timeout: 30
+  presigned-url-generator:
+    handler: src/handlers/presigned-url-generator/handler.main
     events:
       - http:
-          method: post
-          path: resizer
-          request:
-            parameters:
-              headers:
-                Accept: true
-                Content-Type: true
+          method: get
+          path: presigned-url-generator
+  resizer:
+    handler: src/handlers/resizer/handler.main
+    memorySize: 2048
+    timeout: 30
+    events:
+      - s3:
+          bucket: !Ref S3Bucket
+          event: s3:ObjectCreated:*
+          existing: true
+          rules:
+            - prefix: original/
     environment:
       MAX_FILE_SIZE: 11000000
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - s3:GetObject
-          - s3:PutObject
-        Resource: 
-          - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TABLE_NAME}"
-      - Effect: Allow
-        Action:
-          - dynamodb:Query
-          - dynamodb:PutItem
-        Resource: 
-          - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TABLE_NAME}"
 
 
 # --------------------------------------------RESOURCES-----------------------------------------------------
 resources:
   Resources:
-    thumbnailTable:
-      Type: "AWS::DynamoDB::Table"
-      Properties:
-        TableName: thumbnailTable
-        AttributeDefinitions:
-          - AttributeName: "id"
-            AttributeType: "S"
-        KeySchema:
-          - AttributeName: "id"
-            KeyType: "HASH"
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
     S3Bucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: thumbnail-api-bucket
-        AccessControl: Private
+        BucketName: thumbnail-api-service-bucket
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+        OwnershipControls:
+          Rules:
+            - ObjectOwnership: BucketOwnerEnforced
         Tags:
           - Key: Name
-            Value: Thumbnail Api Bucket
+            Value: Thumbnail Api Service Bucket
+    # S3BucketPolicy:
+    #   Type: AWS::S3::BucketPolicy
+    #   Properties:
+    #     Bucket: !Ref S3Bucket # Reference the bucket name
+    #     PolicyDocument: # Define the policy document
+    #       Version: "2012-10-17"
+    #       Statement:
+    #         - Effect: Allow
+    #           Principal: "*"
+    #           Action: "s3:PutObject"
+    #           Resource:
+    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.jpg"
+    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.jpeg" # Allow jpeg files
+    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.png" # Allow png files
+    #         - Effect: Deny
+    #           Principal: "*"
+    #           Action: "s3:PutObject"
+    #           Resource:
+    #             - !Sub "arn:aws:s3:::${S3Bucket}/*" # Deny other types
+    #           Condition:
+    #             StringNotLike:
+    #               s3:x-amz-content-sha256:
+    #                 - "*.jpg"
+    #                 - "*.jpeg"
+    #                 - "*.png"
 
-# ---------------------------------------------------------------------------------------------------------
+
+# --------------------------------------CUSTOM------------------------------------------------------------
 
 custom:
   serverless-offline:
     httpPort: 3000
-    # Set the maximum payload size to 50 MB
-    # You can adjust the value to fit your needs
     payload:
-      maxBytes: 20000000
+      maxBytes: 30000000
 
 package:
   individually: true
