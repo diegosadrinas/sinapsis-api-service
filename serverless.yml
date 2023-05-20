@@ -1,4 +1,4 @@
-service: thumbnail-api-service
+service: thumbnail-api
 frameworkVersion: '3'
 plugins:
   - serverless-esbuild
@@ -18,43 +18,51 @@ provider:
     NODE_OPTIONS: '--enable-source-maps --stack-trace-limit=1000'
     BUCKET_NAME: thumbnail-api-service-bucket
     REGION: !Ref AWS::Region
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - s3:GetObject
-        - s3:PutObject
-        - s3:PutBucketPolicy
-        - s3:GetBucketPolicy
-      Resource: !Ref S3Bucket
+    MAX_FILE_SIZE: 11000000
+    ORIGINAL_IMAGE_FOLDER: original
+    THUMBNAILS_FOLDER: resize
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
 
 # -----------------------------------------------FUNCTIONS---------------------------------------------------
 functions:
-  lambda-test:
-    handler: src/handlers/lambda-test/handler.main
-    events:
-      - http:
-          method: post
-          path: lambda-test
-  presigned-url-generator:
-    handler: src/handlers/presigned-url-generator/handler.main
+  presigned-for-upload:
+    handler: src/handlers/presigned-for-upload/handler.main
     events:
       - http:
           method: get
-          path: presigned-url-generator
+          path: upload-url
+  get-thumbnails:
+    handler: src/handlers/get-thumbnails/handler.main
+    events:
+      - http: 
+          method: get
+          path: download
+          request:
+            parameters:
+              querystrings:
+                key: true
   resizer:
     handler: src/handlers/resizer/handler.main
     memorySize: 2048
     timeout: 30
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:*
+        Resource: "*"
     events:
       - s3:
-          bucket: !Ref S3Bucket
+          bucket: ${self:provider.environment.BUCKET_NAME}
           event: s3:ObjectCreated:*
           existing: true
           rules:
             - prefix: original/
-    environment:
-      MAX_FILE_SIZE: 11000000
-
 
 # --------------------------------------------RESOURCES-----------------------------------------------------
 resources:
@@ -65,41 +73,16 @@ resources:
         BucketName: thumbnail-api-service-bucket
         PublicAccessBlockConfiguration:
           BlockPublicAcls: false
-        OwnershipControls:
-          Rules:
-            - ObjectOwnership: BucketOwnerEnforced
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
         Tags:
           - Key: Name
-            Value: Thumbnail Api Service Bucket
-    # S3BucketPolicy:
-    #   Type: AWS::S3::BucketPolicy
-    #   Properties:
-    #     Bucket: !Ref S3Bucket # Reference the bucket name
-    #     PolicyDocument: # Define the policy document
-    #       Version: "2012-10-17"
-    #       Statement:
-    #         - Effect: Allow
-    #           Principal: "*"
-    #           Action: "s3:PutObject"
-    #           Resource:
-    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.jpg"
-    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.jpeg" # Allow jpeg files
-    #             - !Sub "arn:aws:s3:::${S3Bucket}/*.png" # Allow png files
-    #         - Effect: Deny
-    #           Principal: "*"
-    #           Action: "s3:PutObject"
-    #           Resource:
-    #             - !Sub "arn:aws:s3:::${S3Bucket}/*" # Deny other types
-    #           Condition:
-    #             StringNotLike:
-    #               s3:x-amz-content-sha256:
-    #                 - "*.jpg"
-    #                 - "*.jpeg"
-    #                 - "*.png"
+            Value: Thumbnail Api Bucket
+
 
 
 # --------------------------------------CUSTOM------------------------------------------------------------
-
 custom:
   serverless-offline:
     httpPort: 3000
