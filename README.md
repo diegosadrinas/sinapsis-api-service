@@ -1,95 +1,94 @@
-# Serverless - AWS Node.js Typescript
+# Thumbnail API
 
-This project has been generated using the `aws-nodejs-typescript` template from the [Serverless framework](https://www.serverless.com/).
+Thumbnail API is a simple API that generates thumbnails from a source image. It accepts PNG and JPEG files up to 11 MB in size and returns three new images with the following dimensions: 400x300, 160x120, and 120x120.
 
-For detailed instructions, please refer to the [documentation](https://www.serverless.com/framework/docs/providers/aws/).
+  
+## Table of Contents
 
-## Installation/deployment instructions
+  
 
-Depending on your preferred package manager, follow the instructions below to deploy your project.
+-  [Installation](#installation)
 
-> **Requirements**: NodeJS `lts/fermium (v.14.15.0)`. If you're using [nvm](https://github.com/nvm-sh/nvm), run `nvm use` to ensure you're using the same Node version in local and in your lambda's runtime.
+-  [Usage](#usage)
 
-### Using NPM
 
-- Run `npm i` to install the project dependencies
-- Run `npx sls deploy` to deploy this stack to AWS
 
-### Using Yarn
+## Installation
 
-- Run `yarn` to install the project dependencies
-- Run `yarn sls deploy` to deploy this stack to AWS
+  
 
-## Test your service
+To install and run this project, you need to have Node.js 14.x and Serverless Framework installed on your machine. You also need to have an AWS account and configure your credentials for Serverless Framework.
 
-This template contains a single lambda function triggered by an HTTP request made on the provisioned API Gateway REST API `/hello` route with `POST` method. The request body must be provided as `application/json`. The body structure is tested by API Gateway against `src/functions/hello/schema.ts` JSON-Schema definition: it must contain the `name` property.
+To install the project dependencies, run the following command in the project root directory:
 
-- requesting any other path than `/hello` with any other method than `POST` will result in API Gateway returning a `403` HTTP error code
-- sending a `POST` request to `/hello` with a payload **not** containing a string property named `name` will result in API Gateway returning a `400` HTTP error code
-- sending a `POST` request to `/hello` with a payload containing a string property named `name` will result in API Gateway returning a `200` HTTP status code with a message saluting the provided name and the detailed event processed by the lambda
-
-> :warning: As is, this template, once deployed, opens a **public** endpoint within your AWS account resources. Anybody with the URL can actively execute the API Gateway endpoint and the corresponding lambda. You should protect this endpoint with the authentication method of your choice.
-
-### Locally
-
-In order to test the hello function locally, run the following command:
-
-- `npx sls invoke local -f hello --path src/functions/hello/mock.json` if you're using NPM
-- `yarn sls invoke local -f hello --path src/functions/hello/mock.json` if you're using Yarn
-
-Check the [sls invoke local command documentation](https://www.serverless.com/framework/docs/providers/aws/cli-reference/invoke-local/) for more information.
-
-### Remotely
-
-Copy and replace your `url` - found in Serverless `deploy` command output - and `name` parameter in the following `curl` command in your terminal or in Postman to test your newly deployed application.
-
-```
-curl --location --request POST 'https://myApiEndpoint/dev/hello' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "name": "Frederic"
-}'
+  ```bash
+npm  install
 ```
 
-## Template features
+  
 
-### Project structure
+To deploy the project to AWS, run the following command:
 
-The project code base is mainly located within the `src` folder. This folder is divided in:
-
-- `functions` - containing code base and configuration for your lambda functions
-- `libs` - containing shared code base between your lambdas
-
-```
-.
-├── src
-│   ├── functions               # Lambda configuration and source code folder
-│   │   ├── hello
-│   │   │   ├── handler.ts      # `Hello` lambda source code
-│   │   │   ├── index.ts        # `Hello` lambda Serverless configuration
-│   │   │   ├── mock.json       # `Hello` lambda input parameter, if any, for local invocation
-│   │   │   └── schema.ts       # `Hello` lambda input event JSON-Schema
-│   │   │
-│   │   └── index.ts            # Import/export of all lambda configurations
-│   │
-│   └── libs                    # Lambda shared code
-│       └── apiGateway.ts       # API Gateway specific helpers
-│       └── handlerResolver.ts  # Sharable library for resolving lambda handlers
-│       └── lambda.ts           # Lambda middleware
-│
-├── package.json
-├── serverless.ts               # Serverless service file
-├── tsconfig.json               # Typescript compiler configuration
-├── tsconfig.paths.json         # Typescript paths
-└── webpack.config.js           # Webpack configuration
+```bash
+serverless  deploy
 ```
 
-### 3rd party libraries
+This will create an S3 bucket and three Lambda functions with API Gateway endpoints. You can find the endpoint URLs in the output of the command.
 
-- [json-schema-to-ts](https://github.com/ThomasAribart/json-schema-to-ts) - uses JSON-Schema definitions used by API Gateway for HTTP request validation to statically generate TypeScript types in your lambda's handler code base
-- [middy](https://github.com/middyjs/middy) - middleware engine for Node.Js lambda. This template uses [http-json-body-parser](https://github.com/middyjs/middy/tree/master/packages/http-json-body-parser) to convert API Gateway `event.body` property, originally passed as a stringified JSON, to its corresponding parsed object
-- [@serverless/typescript](https://github.com/serverless/typescript) - provides up-to-date TypeScript definitions for your `serverless.ts` service file
 
-### Advanced usage
+## Usage
 
-Any tsconfig.json can be used, but if you do, set the environment variable `TS_NODE_CONFIG` for building the application, eg `TS_NODE_CONFIG=./tsconfig.app.json npx serverless webpack`
+The API provides two endpoints: one for getting a presigned URL for uploading an image to S3, and one for getting presigned URLs for downloading thumbnail images.
+
+  
+
+### Getting a presigned URL for uploading an image
+
+To get a presigned URL for uploading an image to S3, make a GET request to the /upload endpoint. In this case no params are needed. For example:
+
+```bash
+curl  https://<api-url>/upload
+```
+
+The response will be a JSON object with a url property that contains a presigned URL for uploading the image to S3. For example:
+
+```json
+{
+"message":  "Presigned Url for Put request successfully generated",
+"key":  "237d8fbf-49dd-484a-a94f-d67eddc51aaa",
+"data":  "https://thumbnail-api-service-bucket.s3.us-east-1.amazonaws.com/original/...id=PutObject"
+}
+```
+
+
+### Uploading an image using the presigned URL
+To upload an image using the presigned URL, make a PUT request to the URL with the image file in the body as a binary. For example:
+```bash
+curl -X PUT -T --data-binary my-image.jpg https://thumbnail-api-service-bucket.s3.amazonaws.com/original/my-image.jpg?AWSAccessKeyId=AKIA...&Expires=163...&Signature=...
+```
+The response will be an empty body with a status code of 200 if the upload was successful.
+
+### Getting presigned URLs for downloading thumbnail images
+
+To get presigned URLs for downloading thumbnail images, make a GET request to the /download endpoint with a query parameter key that specifies the key received in the first request. For example:
+```bash
+  curl https://<api-url>/download?key=uuid-key-received
+```
+The response will be a JSON object with three properties: small, medium, and large, each containing a URL for downloading a thumbnail image with different dimensions. For example:
+
+  
+```json
+{
+"small": "https://thumbnail-api-service-bucket.s3.amazonaws.com/resize/120x120/my-image.jpg",
+"medium": "https://thumbnail-api-service-bucket.s3.amazonaws.com/resize/160x120/my-image.jpg",
+"large": "https://thumbnail-api-service-bucket.s3.amazonaws.com/resize/400x300/my-image.jpg"
+}
+```
+
+### Downloading a thumbnail image using one of the presigned URLs
+
+To download a thumbnail image using one of these URLs, make a GET request to the URL, or simply enter the url in your browser. For example:
+```bash
+curl https://thumbnail-api-service-bucket.s3.amazonaws.com/resize/120x120/my-image.jpg -o my-image-small.jpg
+``` 
+The response will be the thumbnail image file if it exists, or an error message if it does not.
