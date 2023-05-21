@@ -1,10 +1,8 @@
 import {  APIGatewayProxyHandler } from 'aws-lambda';
 import { middyfy } from '@libs/lambda';
 import { v4 as uuid } from 'uuid';
-import { 
-    responses,
-    createPresignedUrlForPutRequest
-} from 'src/helpers'
+import { responses } from 'src/helpers/api-responses'
+import { createPresignedUrlForPutRequest } from 'src/helpers/bucket-actions'
 
 type uploadParams = {
     bucket: string;
@@ -12,7 +10,6 @@ type uploadParams = {
 }
 
 // Define the S3 bucket and folder names
-// const region: string = process.env.region
 const bucket: string = process.env.BUCKET_NAME;
 const originalFolder: string = process.env.ORIGINAL_IMAGE_FOLDER;
 
@@ -28,7 +25,7 @@ const presignedUrlForUpload: APIGatewayProxyHandler = async () => {
         return responses._200({
             message: `Presigned Url for Put request successfully generated`, 
             key: imageKey,
-            data: presignedUrl 
+            url: presignedUrl 
         });    
     } catch (error) {
         return responses._500({

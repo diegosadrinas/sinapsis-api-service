@@ -2,14 +2,11 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { createPresignedUrlForGetRequest, getObject, responses, streamToString } from "src/helpers";
 import { Readable } from "stream";
 
-// Create S3 service object
-// const s3: S3Client = new S3Client({region: process.env.region});
 
 // Define the bucket name
 const bucket: string = process.env.BUCKET_NAME;
 const region: string = process.env.REGION
 const destinationFolder: string = process.env.THUMBNAILS_FOLDER
-
 
 // Define the handler function
 const getThumbnailsUrl = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -28,19 +25,19 @@ const getThumbnailsUrl = async (event: APIGatewayProxyEvent): Promise<APIGateway
                 message: 'Missing key on request. Unable to get thumbnails by key'
             })
         };
-        
-        // TODO:
-        // 1- Eliminar JSON luego del error:
 
-        
         // Checks if there is an Error file in the bucket.
         const errorFileKey = `${objectKey}.json`
-        const checkErrorMessage = await getObject({bucket, key: errorFileKey})
-        if (checkErrorMessage.Body) {
-            const body = checkErrorMessage.Body as Readable;
-            const data = await streamToString(body);
-            const json = JSON.parse(data)
-            return responses._404({ message: json.message })
+        try {
+            const checkErrorMessage = await getObject({bucket, key: errorFileKey})
+            if (checkErrorMessage.Body) {
+                const body = checkErrorMessage.Body as Readable;
+                const data = await streamToString(body);
+                const json = JSON.parse(data)
+                return responses._404({ message: json.message })
+            }
+        } catch (error) {
+            // This will get by the error if there is no json object, passing to the next block.
         }
 
         // Create the parameters for calling getObject
