@@ -1,1 +1,0 @@
-{"version":3,"file":"schema.js","sourceRoot":"","sources":["../../../src/handlers/lambda-test/schema.ts"],"names":[],"mappings":"AAAA,eAAe;IACX,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE;QACV,OAAO,EAAE,EAAE,IAAI,EAAE,QAAQ,EAAE;KAC5B;IACD,QAAQ,EAAE,CAAC,SAAS,CAAC;CACb,CAAC"}
