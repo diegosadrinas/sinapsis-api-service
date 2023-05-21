@@ -7,7 +7,7 @@ plugins:
 useDotenv: true
 provider:
   name: aws
-  runtime: nodejs14.x
+  runtime: nodejs18.x
   region: us-east-1
   apiGateway:
     shouldStartNameWithService: true
@@ -36,7 +36,7 @@ functions:
     events:
       - http:
           method: get
-          path: upload-url
+          path: upload
   get-thumbnails:
     handler: src/handlers/get-thumbnails/handler.main
     events:
@@ -71,14 +71,14 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: thumbnail-api-service-bucket
-        PublicAccessBlockConfiguration:
-          BlockPublicAcls: false
-          BlockPublicPolicy: false
-          IgnorePublicAcls: false
-          RestrictPublicBuckets: false
         Tags:
           - Key: Name
             Value: Thumbnail Api Bucket
+        LifecycleConfiguration:
+          Rules:
+            - ExpirationInDays: 1
+              Prefix: '/'
+              Status: Enabled
 
 
 
