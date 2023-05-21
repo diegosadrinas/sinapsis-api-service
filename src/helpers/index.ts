@@ -7,6 +7,7 @@ import {
 } from './bucket-actions';
 import { responses } from './api-responses'
 import { streamToBuffer, streamToString } from './stream-converter';
+import { isValidFile } from './upload-validator';
 
 
 export { 
@@ -17,5 +18,6 @@ export {
     uploadPresignedObject,
     responses,
     streamToBuffer,
-    streamToString
-}
+    streamToString,
+    isValidFile
+};

@@ -1,4 +1,3 @@
-
 export const responses = {
     _response(statusCode = 502, data = {}) {
         return {
@@ -14,7 +13,6 @@ export const responses = {
     _200(data = {}) {
         return this._response(200, data);
     },
-
     _400(data = {}) {
         return this._response(400, data);
     },

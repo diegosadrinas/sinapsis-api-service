@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { responses } from "./api-responses";
+import { responses } from "src/helpers/api-responses";
 import axios from "axios";
 
 
@@ -14,18 +14,15 @@ export const createPresignedUrlForPutRequest = async ({ bucket, key }) => {
         Key: key, 
         });
         return await getSignedUrl(s3, command, { expiresIn: 6000 });
-
     } catch (err) {
         return responses._500({
             message: `Error generating presigned url`,
             error: err.message,
         })
-    }
-    
+    };  
 };
 
-
-export const createPresignedUrlForGetRequest = async ({ region, bucket, key }) => {
+export const createPresignedUrlForGetRequest = async ({ bucket, key }) => {
     try {
         const command = new GetObjectCommand({ Bucket: bucket, Key: key });
         return await getSignedUrl(s3, command, { expiresIn: 6000 });
@@ -37,8 +34,7 @@ export const createPresignedUrlForGetRequest = async ({ region, bucket, key }) =
     }
 };
 
-
-export const uploadPresignedObject =  async ({region, bucket, key}, buffer:Buffer) => {
+export const uploadPresignedObject =  async ({bucket, key}, buffer:Buffer) => {
     try {
         const presignedUrl = await createPresignedUrlForPutRequest({bucket, key})
         return await axios.put(presignedUrl, buffer);
@@ -62,7 +58,6 @@ export const uploadJsonFile = async (data:object, bucket:string, key: string) =>
     console.log(`JSON creation response: ${response}`);
 }
 
-
 export const getObject = async ({bucket, key}) => {
     const command = new GetObjectCommand({
         Bucket: bucket,
@@ -71,14 +66,12 @@ export const getObject = async ({bucket, key}) => {
     return await s3.send(command)
 };
 
-export const deleteObject = ({ bucket, key }) => {
-    // create a delete object command
+export const deleteObject = async ({ bucket, key }) => {
     const command = new DeleteObjectCommand({
       Bucket: bucket,
       Key: key,
     });
-    // return the command
-    return command;
+    return await s3.send(command);
   };
 
 
