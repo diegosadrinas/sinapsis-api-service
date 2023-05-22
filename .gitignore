@@ -7,3 +7,9 @@ jspm_packages
 
 # esbuild directories
 .esbuild
+
+# Lib folder
+lib
+
+
+
