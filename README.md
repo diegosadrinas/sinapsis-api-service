@@ -52,7 +52,7 @@ The API provides two endpoints: one for getting a presigned URL for uploading an
 To get a presigned URL for uploading an image to S3, make a GET request to the /upload endpoint. In this case no params are needed. For example:
 
 ```bash
-curl  https://<api-url>/upload
+curl --location --request GET 'https://my-api-com/dev/upload'
 ```
 
 The response will be a JSON object with a url property that contains a presigned URL for uploading the image to S3. For example:
@@ -69,7 +69,9 @@ Keep in mind that the presigned-url has a expiration time of 10 minutes. After t
 ### Uploading an image using the presigned URL
 To upload an image using the presigned URL, make a PUT request to the URL with the image file in the body as a binary. For example:
 ```bash
-curl -X PUT -T --data-binary my-image.jpg https://thumbnail-api-service-bucket.s3.amazonaws.com/original/my-image.jpg?AWSAccessKeyId=AKIA...&Expires=163...&Signature=...
+curl --location --request PUT 'https://my-api.com/original/9cac5881-c289-42a4-aca3-414ea04e28fe?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIA4OBPEMQTV53BZTZ6%2F20230522%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20230522T150917Z&X-Amz-Expires=6000&X-Amz-Security-Token=...-id=PutObject' \
+--header 'Content-Type: text/plain' \
+--data-binary '@'
 ```
 The response will be an empty body with a status code of 200 if the upload was successful.
 
@@ -77,7 +79,7 @@ The response will be an empty body with a status code of 200 if the upload was s
 
 To get presigned URLs for downloading thumbnail images, make a GET request to the /download endpoint with a query parameter key that specifies the key received in the first request. For example:
 ```bash
-  curl https://<api-url>/download?key=uuid-key-received
+  curl --location --request GET 'https://my-api.com/dev/download?key={key}'
 ```
 The response will be a JSON object with three properties: small, medium, and large, each containing a URL for downloading a thumbnail image with different dimensions. For example:
 
