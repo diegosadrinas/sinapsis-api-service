@@ -122,3 +122,7 @@ For a complete documentation on the requests/responses explained above, see the 
 
 ## Further implementations
 There are several aspects or features that can be utterly improved and implemented. Here is a list of possible future implmentations:
+- *Authorization*: Right now the API has "too public" approach. These can lead to security issues, since now the endpoints are accessible for everyone, which means that anyone can trigger the lambdas that are facing to the public.
+- *File limitation from the bucket*: Due to a problem with my AWS account, I couldn't apply BucketPolicies for restricting the type of files that can be uploaded to the bucket. This limitation lead me to implement a validation process in my backend, that evaluates the file format and utterly deletes it. 
+- *Size limitation from the bucket*: The same thing happens with the size liimitation. Although it's been handled by the backend, a user can try to upload any size that his interface allows and the bucket can take. This can lead to several problems.
+- *Database*: The error JSON file is arguably a solution in a more complex context. It is obvious that a DB -probably a relational DB to start- will handle the process more efficiently. It should store the unique KEY, the user (in case some kind of authorization was implemented), a status and an error message if there was one. This should make the whole process more agile and organic, without any need to do creation/deletion files request to the S3 bucket.
